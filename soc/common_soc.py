@@ -16,35 +16,60 @@
 import argparse
 import importlib
 import pkgutil
-from board_specific_workflows import workflow_factory, parse_workflow_args
-from litex.soc.integration import soc
-from litex_boards import targets
 from typing import Callable
 
+from board_specific_workflows import parse_workflow_args, workflow_factory
+from custom_boards import targets as custom_targets
+from litex.soc.integration import soc
+from litex_boards import targets
 
-def get_soc_constructor(target: str) -> Callable[..., soc.LiteXSoC]:
+
+def get_soc_constructor_litex(target: str) -> Callable[..., soc.LiteXSoC]:
     """Returns the constructor for the target SoC from litex-boards module."""
     boards = {m.name for m in pkgutil.walk_packages(targets.__path__)}
     if target not in boards:
-        s = ', '.join(sorted(boards))
+        s = ", ".join(sorted(boards))
         raise ValueError(f'Could not find "{target}" in supported boards: {s}')
-    module = importlib.import_module(f'litex_boards.targets.{target}')
+    module = importlib.import_module(f"litex_boards.targets.{target}")
     return module.BaseSoC
+
+
+def get_soc_constructor_custom(target: str) -> Callable[..., soc.LiteXSoC]:
+    """Returns the constructor for the target SoC from python/custom_boards directory module."""
+    boards = {m.name for m in pkgutil.walk_packages(custom_targets.__path__)}
+    if target not in boards:
+        s = ", ".join(sorted(boards))
+        raise ValueError(f'Could not find "{target}" in supported boards: {s}')
+
+    module = importlib.import_module(f"custom_boards.targets.{target}")
+    return module.BaseSoC
+
+
+def get_soc_constructor(target: str) -> Callable[..., soc.LiteXSoC]:
+    """Returns the constructor for the target SoC."""
+    try:
+        return get_soc_constructor_litex(target)
+    except ValueError:
+        return get_soc_constructor_custom(target)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        'Determine purpose (load software or hardware).', add_help=False)
-    parser.add_argument('--software-load',
-                        action='store_true',
-                        help='Perform pre-lxterm loading procedures.')
-    parser.add_argument('--software-path', help='Path to software to load')
+        "Determine purpose (load software or hardware).", add_help=False
+    )
+    parser.add_argument(
+        "--software-load",
+        action="store_true",
+        help="Perform pre-lxterm loading procedures.",
+    )
+    parser.add_argument("--software-path", help="Path to software to load")
     purpose, _ = parser.parse_known_args()
 
     args = parse_workflow_args()
     assert not (args.with_ethernet and args.with_etherbone)
-    workflow = workflow_factory(args.target)(args,
-                                             get_soc_constructor(args.target))
+    workflow = workflow_factory(args.target)(
+        args, get_soc_constructor(args.target)
+    )
 
     # Determine if call to code was for loading software or hardware/bios.
     if purpose.software_load == True:
