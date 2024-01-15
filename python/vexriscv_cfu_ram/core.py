@@ -12,48 +12,14 @@
 
 import os
 
-from litex import get_data_mod
-from litex.soc.cores.cpu import CPU, CPU_GCC_TRIPLE_RISCV32
-from litex.soc.cores.cpu.vexriscv.core import (CPU_VARIANTS, GCC_FLAGS,
-                                               VexRiscvTimer)
+from litex.soc.cores.cpu.vexriscv.core import CPU_VARIANTS, VexRiscv
 from litex.soc.interconnect import wishbone
-from litex.soc.interconnect.csr import *
 from migen import *
 
-# VexRiscv -----------------------------------------------------------------------------------------
+# VexRiscv
 
 
-class VexRiscvCFURAM(CPU, AutoCSR):
-    category = "softcore"
-    family = "riscv"
-    name = "vexriscv"
-    human_name = "VexRiscv"
-    variants = CPU_VARIANTS
-    data_width = 32
-    endianness = "little"
-    gcc_triple = CPU_GCC_TRIPLE_RISCV32
-    linker_output_format = "elf32-littleriscv"
-    nop = "nop"
-    io_regions = {0x8000_0000: 0x8000_0000}  # Origin, Length
-
-    # Memory Mapping.
-    @property
-    def mem_map(self):
-        return {
-            "rom": 0x0000_0000,
-            "sram": 0x1000_0000,
-            "main_ram": 0x4000_0000,
-            "csr": 0xF000_0000,
-            "vexriscv_debug": 0xF00F_0000,
-        }
-
-    # GCC Flags.
-    @property
-    def gcc_flags(self):
-        flags = GCC_FLAGS[self.variant]
-        flags += " -D__vexriscv__"
-        return flags
-
+class VexRiscvCFURAM(VexRiscv):
     def __init__(self, platform, variant="standard", with_timer=False):
         self.platform = platform
         self.variant = variant
@@ -114,114 +80,6 @@ class VexRiscvCFURAM(CPU, AutoCSR):
         # Add Debug (Optional).
         if "debug" in variant:
             self.add_debug()
-
-    def set_reset_address(self, reset_address):
-        self.reset_address = reset_address
-        self.cpu_params.update(
-            i_externalResetVector=Signal(32, reset=reset_address)
-        )
-
-    def add_timer(self):
-        self.submodules.timer = VexRiscvTimer()
-        self.cpu_params.update(i_timerInterrupt=self.timer.interrupt)
-
-    def add_debug(self):
-        debug_reset = Signal()
-
-        ibus_err = Signal()
-        dbus_err = Signal()
-
-        self.i_cmd_valid = Signal()
-        self.i_cmd_payload_wr = Signal()
-        self.i_cmd_payload_address = Signal(8)
-        self.i_cmd_payload_data = Signal(32)
-        self.o_cmd_ready = Signal()
-        self.o_rsp_data = Signal(32)
-        self.o_resetOut = Signal()
-
-        reset_debug_logic = Signal()
-
-        self.transfer_complete = Signal()
-        self.transfer_in_progress = Signal()
-        self.transfer_wait_for_ack = Signal()
-
-        self.debug_bus = wishbone.Interface()
-
-        self.sync += self.debug_bus.dat_r.eq(self.o_rsp_data)
-        self.sync += debug_reset.eq(reset_debug_logic | ResetSignal())
-
-        self.sync += [
-            # CYC is held high for the duration of the transfer.
-            # STB is kept high when the transfer finishes (write)
-            # or the master is waiting for data (read), and stays
-            # there until ACK, ERR, or RTY are asserted.
-            If(
-                (self.debug_bus.stb & self.debug_bus.cyc)
-                & (~self.transfer_in_progress)
-                & (~self.transfer_complete)
-                & (~self.transfer_wait_for_ack),
-                self.i_cmd_payload_data.eq(self.debug_bus.dat_w),
-                self.i_cmd_payload_address.eq(
-                    (self.debug_bus.adr[0:6] << 2) | 0
-                ),
-                self.i_cmd_payload_wr.eq(self.debug_bus.we),
-                self.i_cmd_valid.eq(1),
-                self.transfer_in_progress.eq(1),
-                self.transfer_complete.eq(0),
-                self.debug_bus.ack.eq(0),
-            )
-            .Elif(
-                self.transfer_in_progress,
-                If(
-                    self.o_cmd_ready,
-                    self.i_cmd_valid.eq(0),
-                    self.i_cmd_payload_wr.eq(0),
-                    self.transfer_complete.eq(1),
-                    self.transfer_in_progress.eq(0),
-                ),
-            )
-            .Elif(
-                self.transfer_complete,
-                self.transfer_complete.eq(0),
-                self.debug_bus.ack.eq(1),
-                self.transfer_wait_for_ack.eq(1),
-            )
-            .Elif(
-                self.transfer_wait_for_ack
-                & ~(self.debug_bus.stb & self.debug_bus.cyc),
-                self.transfer_wait_for_ack.eq(0),
-                self.debug_bus.ack.eq(0),
-            ),
-            # Force a Wishbone error if transferring during a reset sequence.
-            # Because o_resetOut is multiple cycles and i.stb/d.stb should
-            # deassert one cycle after i_err/i_ack/d_err/d_ack are asserted,
-            # this will give i_err and o_err enough time to be reset to 0
-            # once the reset cycle finishes.
-            If(
-                self.o_resetOut,
-                If(self.ibus.cyc & self.ibus.stb, ibus_err.eq(1)).Else(
-                    ibus_err.eq(0)
-                ),
-                If(self.dbus.cyc & self.dbus.stb, dbus_err.eq(1)).Else(
-                    dbus_err.eq(0)
-                ),
-                reset_debug_logic.eq(1),
-            ).Else(reset_debug_logic.eq(0)),
-        ]
-
-        self.cpu_params.update(
-            i_reset=ResetSignal() | self.reset | debug_reset,
-            i_iBusWishbone_ERR=self.ibus.err | ibus_err,
-            i_dBusWishbone_ERR=self.dbus.err | dbus_err,
-            i_debugReset=ResetSignal(),
-            i_debug_bus_cmd_valid=self.i_cmd_valid,
-            i_debug_bus_cmd_payload_wr=self.i_cmd_payload_wr,
-            i_debug_bus_cmd_payload_address=self.i_cmd_payload_address,
-            i_debug_bus_cmd_payload_data=self.i_cmd_payload_data,
-            o_debug_bus_cmd_ready=self.o_cmd_ready,
-            o_debug_bus_rsp_data=self.o_rsp_data,
-            o_debug_resetOut=self.o_resetOut,
-        )
 
     def add_cfu(self, cfu_filename):
         # Check CFU presence.
@@ -303,43 +161,3 @@ class VexRiscvCFURAM(CPU, AutoCSR):
             o_CfuPlugin_bus_rsp_ready=cfu_bus.rsp.ready,
             i_CfuPlugin_bus_rsp_payload_outputs_0=cfu_bus.rsp.payload.outputs_0,
         )
-
-    @staticmethod
-    def add_sources(platform, variant="standard"):
-        cpu_filename = CPU_VARIANTS[variant] + ".v"
-        vdir = get_data_mod("cpu", "vexriscv").data_location
-        platform.add_source(os.path.join(vdir, cpu_filename))
-
-    def add_soc_components(self, soc, soc_region_cls):
-        # Connect Debug interface to SoC.
-        if "debug" in self.variant:
-            soc.bus.add_slave(
-                "vexriscv_debug",
-                self.debug_bus,
-                region=soc_region_cls(
-                    origin=soc.mem_map.get("vexriscv_debug"),
-                    size=0x100,
-                    cached=False,
-                ),
-            )
-
-        # Pass I/D Caches info to software.
-        base_variant = str(self.variant.split("+")[0])
-        # DCACHE is present on all variants except minimal and lite.
-        if not base_variant in ["minimal", "lite"]:
-            soc.add_config("CPU_HAS_DCACHE")
-        # ICACHE is present on all variants except minimal.
-        if not base_variant in ["minimal"]:
-            soc.add_config("CPU_HAS_ICACHE")
-
-    def use_external_variant(self, variant_filename):
-        self.external_variant = True
-        self.platform.add_source(variant_filename)
-
-    def do_finalize(self):
-        assert hasattr(self, "reset_address")
-        if not self.external_variant:
-            self.add_sources(self.platform, self.variant)
-        self.specials += Instance("VexRiscv", **self.cpu_params)
-        if hasattr(self, "cfu_params"):
-            self.specials += Instance("Cfu", **self.cfu_params)
