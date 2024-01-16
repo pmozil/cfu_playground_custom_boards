@@ -15,6 +15,7 @@
 
 # This variable lists symbols to define to the C preprocessor
 export DEFINES :=
+# export EXTRA_LITEX_ARGS := --cpu-variant generate+Full+Cfu
 
 # Uncomment this line to use software defined CFU functions in software_cfu.cc
 #DEFINES += CFU_SOFTWARE_DEFINED

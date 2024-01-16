@@ -25,10 +25,10 @@ module RAM_ctrl (
   input  reg [31:0] wdata,
   output reg [31:0] rdata,
   input  reg [29:0] address,
-  input  reg read_req,
-  input  reg write_req,
-  input  reg burst_mode,
-  output reg acknowledge,
+  input  wire read_req,
+  input  wire write_req,
+  input  wire burst_mode,
+  output wire acknowledge,
   output ram_ctrl_state cur_state,
 
   input  reset,
@@ -60,7 +60,6 @@ module RAM_ctrl (
     if (reset) begin
       case (cur_state)
         MEM_STATE_INIT: begin
-          acknowledge = 0;
           case (request_val)
             010:     next_state = MEM_STATE_WRITE_PENDING;
             011:     next_state = MEM_STATE_BURST_WRITE_PENDING;
@@ -73,25 +72,21 @@ module RAM_ctrl (
         MEM_STATE_WRITE_PENDING: begin
           next_state = cfu_ram_ack ? MEM_STATE_INIT :
               MEM_STATE_WRITE_PENDING;
-          acknowledge = cfu_ram_ack;
         end
 
         MEM_STATE_READ_PENDING: begin
           next_state = cfu_ram_ack ? MEM_STATE_INIT :
               MEM_STATE_READ_PENDING;
-          acknowledge = cfu_ram_ack;
         end
 
         MEM_STATE_BURST_WRITE_PENDING: begin
           next_state = cfu_ram_ack ? MEM_STATE_INIT :
               MEM_STATE_BURST_WRITE_PENDING;
-          acknowledge = cfu_ram_ack;
         end
 
         MEM_STATE_BURST_READ_PENDING: begin
           next_state = cfu_ram_ack ? MEM_STATE_INIT :
               MEM_STATE_BURST_READ_PENDING;
-          acknowledge = cfu_ram_ack;
         end
   
         default: begin
@@ -133,12 +128,12 @@ module RAM_ctrl (
       cur_state <= next_state;
       case (cur_state)
           MEM_STATE_READ_PENDING: begin
-              if (acknowledge) rdata <= cfu_ram_dat_miso;
+              if (cfu_ram_ack)  rdata <= cfu_ram_dat_miso;
               else rdata <= rdata;
           end
 
           MEM_STATE_BURST_READ_PENDING: begin
-              if (acknowledge) rdata <= cfu_ram_dat_miso;
+              if (cfu_ram_ack)  rdata <= cfu_ram_dat_miso;
               else rdata <= rdata;
           end
 
@@ -181,7 +176,7 @@ module Cfu (
     logic write_req;
     logic burst_mode;
     logic acknowledge;
-    ram_ctrl_state cur_ram_state;
+    ram_ctrl_state cur_state;
     
 
   RAM_ctrl ram_ctrl (
@@ -205,136 +200,43 @@ module Cfu (
    .write_req(write_req),
    .burst_mode(burst_mode),
    .acknowledge(acknowledge),
-   .cur_state(cur_ram_state),
+   .cur_state(cur_state),
 
    .reset(reset),
    .clk(clk)
   );
-
   localparam InputOffset = $signed(9'd128);
 
   // SIMD multiply step:
   wire signed [15:0] prod_0, prod_1, prod_2, prod_3;
-  // assign prod_0 =  ($signed(cmd_payload_inputs_0[7 : 0]) + InputOffset)
-  //         * $signed(cmd_payload_inputs_1[7 : 0]);
-  // assign prod_1 =  ($signed(cmd_payload_inputs_0[15: 8]) + InputOffset)
-  //         * $signed(cmd_payload_inputs_1[15: 8]);
-  // assign prod_2 =  ($signed(cmd_payload_inputs_0[23:16]) + InputOffset)
-  //         * $signed(cmd_payload_inputs_1[23:16]);
-  // assign prod_3 =  ($signed(cmd_payload_inputs_0[31:24]) + InputOffset)
-  //         * $signed(cmd_payload_inputs_1[31:24]);
-
-  logic [31:0] matrix_vals = 0;
-  logic [31:0] filter_vals = 0;
-
-  assign prod_0 =  ($signed(matrix_vals[7 : 0]) + InputOffset)
-          * $signed(filter_vals[7 : 0]);
-  assign prod_1 =  ($signed(matrix_vals[15: 8]) + InputOffset)
-          * $signed(filter_vals[15: 8]);
-  assign prod_2 =  ($signed(matrix_vals[23:16]) + InputOffset)
-          * $signed(filter_vals[23:16]);
-  assign prod_3 =  ($signed(matrix_vals[31:24]) + InputOffset)
-          * $signed(filter_vals[31:24]);
+  assign prod_0 =  ($signed(cmd_payload_inputs_0[7 : 0]) + InputOffset)
+          * $signed(cmd_payload_inputs_1[7 : 0]);
+  assign prod_1 =  ($signed(cmd_payload_inputs_0[15: 8]) + InputOffset)
+          * $signed(cmd_payload_inputs_1[15: 8]);
+  assign prod_2 =  ($signed(cmd_payload_inputs_0[23:16]) + InputOffset)
+          * $signed(cmd_payload_inputs_1[23:16]);
+  assign prod_3 =  ($signed(cmd_payload_inputs_0[31:24]) + InputOffset)
+          * $signed(cmd_payload_inputs_1[31:24]);
 
   wire signed [31:0] sum_prods;
   assign sum_prods = prod_0 + prod_1 + prod_2 + prod_3;
 
-  typedef enum {
-      PIPELINE_STATE_INIT,
-      PIPELINE_STATE_EXEC_0,
-      PIPELINE_STATE_EXEC_1_FETCH_VAL,
-      PIPELINE_STATE_EXEC_1_FETCH_FILTER,
-      PIPELINE_STATE_EXEC_1_ADD,
-      PIPELINE_STATE_FN_DONE
-  } fetch_multiply_state;
-
-  fetch_multiply_state cur_state = PIPELINE_STATE_INIT;
-  fetch_multiply_state next_state = PIPELINE_STATE_INIT;
-
-  always_comb begin
-    case (cur_state)
-      PIPELINE_STATE_INIT: begin
-          if (cmd_valid) next_state = |cmd_payload_function_id[9:3] ?
-                    PIPELINE_STATE_EXEC_0 :
-                    PIPELINE_STATE_EXEC_1_FETCH_VAL;
-          else next_state = PIPELINE_STATE_INIT;
-      end
-
-      PIPELINE_STATE_EXEC_0: begin
-          next_state = PIPELINE_STATE_INIT;
-      end
-
-      PIPELINE_STATE_EXEC_1_FETCH_VAL: begin
-          // if (acknowledge) next_state = PIPELINE_STATE_EXEC_1_FETCH_FILTER;
-          next_state = PIPELINE_STATE_EXEC_1_FETCH_FILTER;
-      end
-
-      PIPELINE_STATE_EXEC_1_FETCH_FILTER: begin
-          // if (acknowledge) next_state = PIPELINE_STATE_EXEC_1_ADD;
-          next_state = PIPELINE_STATE_EXEC_1_ADD;
-      end
-
-      PIPELINE_STATE_EXEC_1_ADD: begin
-          next_state = PIPELINE_STATE_INIT;
-      end
-       
-      default: begin
-      end
-    endcase
-  end
-
-
   // Only not ready for a command when we have a response.
   assign cmd_ready = ~rsp_valid;
 
-  always_ff @(posedge clk or posedge reset) begin
-    cur_state <= next_state;
-
-    if (reset) begin
-      rsp_payload_outputs_0 <= 32'b0;
-      rsp_valid <= 1'b0;
-      cur_state <= PIPELINE_STATE_INIT;
-    end else if (rsp_valid) begin
-      // Waiting to hand off response to CPU.
-      rsp_valid <= ~rsp_ready;
-    end else if (cmd_valid) begin
-      rsp_valid <= (
-        cur_state == PIPELINE_STATE_EXEC_1_ADD |
-        cur_state == PIPELINE_STATE_EXEC_0
-      );
-
-      case (cur_state)
-        PIPELINE_STATE_EXEC_0: rsp_payload_outputs_0 <= 32'b0;
-
-        PIPELINE_STATE_EXEC_1_FETCH_VAL: begin
-            // address <= cmd_payload_inputs_0;
-            // read_req <= 1;
-            // byte_enable <= 4'b1111;
-
-            // if (acknowledge) begin
-            //     matrix_vals <= read_data;
-            //     read_req <= 0;
-            // end
-            matrix_vals <= cmd_payload_inputs_0;
-        end
-
-        PIPELINE_STATE_EXEC_1_FETCH_FILTER: begin
-            // address <= cmd_payload_inputs_1;
-            // read_req <= 1;
-            // byte_enable <= 4'b1111;
-
-            // if (acknowledge) begin
-            //     filter_vals <= read_data;
-            //     read_req <= 0;
-            // end
-            filter_vals <= cmd_payload_inputs_1;
-        end
-
-        PIPELINE_STATE_EXEC_1_ADD: rsp_payload_outputs_0 <= rsp_payload_outputs_0 + sum_prods;
-
-        default: begin
-        end
-      endcase
-    end
+  always @(posedge clk) begin
+  if (reset) begin
+    rsp_payload_outputs_0 <= 32'b0;
+    rsp_valid <= 1'b0;
+  end else if (rsp_valid) begin
+    // Waiting to hand off response to CPU.
+    rsp_valid <= ~rsp_ready;
+  end else if (cmd_valid) begin
+    rsp_valid <= 1'b1;
+    // Accumulate step:
+    rsp_payload_outputs_0 <= |cmd_payload_function_id[9:3]
+      ? 32'b0
+      : rsp_payload_outputs_0 + sum_prods;
+  end
   end
 endmodule
