@@ -31,14 +31,13 @@ class VexRiscvCFURAM(VexRiscv):
         self.dbus = dbus = wishbone.Interface()
         self.cfu_mem = cfu_mem = wishbone.Interface()
         self.periph_buses = [
+            cfu_mem,
             ibus,
             dbus,
-            cfu_mem,
         ]  # Peripheral buses (Connected to main SoC's bus).
 
-        self.memory_buses = (
-            []
-        )  # Memory buses (Connected directly to LiteDRAM).
+        self.memory_buses = []
+        # Memory buses (Connected directly to LiteDRAM).
 
         # # #
 

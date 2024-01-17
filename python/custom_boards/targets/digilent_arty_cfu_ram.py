@@ -101,9 +101,9 @@ class BaseSoC(SoCCore):
             **kwargs
         )
 
-        from litex.soc.cores.cpu.vexriscv.core import VexRiscv
+        # from litex.soc.cores.cpu.vexriscv.core import VexRiscv
 
-        cpu.CPUS.update({"vexriscv": VexRiscv})
+        # cpu.CPUS.update({"vexriscv": VexRiscv})
 
         # DDR3 SDRAM -------------------------------------------------------------------------------
         if not self.integrated_main_ram_size:

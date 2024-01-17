@@ -21,8 +21,6 @@ import sys
 from importlib import import_module
 from shutil import copy
 
-# import json2renode as litex_renode
-
 sys.path.append(
     (
         os.path.join(
