@@ -294,7 +294,7 @@ module Cfu (
     PIPELINE_STATE_EXEC_0: rsp_payload_outputs_0 <= 32'b0;
 
     PIPELINE_STATE_EXEC_1_FETCH_VAL: begin
-      address <= cmd_payload_inputs_0[31:2];
+      address <= cmd_payload_inputs_0;
       read_req <= 1;
       byte_enable <= 4'b1111;
 
@@ -306,7 +306,7 @@ module Cfu (
     end
 
     PIPELINE_STATE_EXEC_1_FETCH_FILTER: begin
-      address <= cmd_payload_inputs_1[31:2];
+      address <= cmd_payload_inputs_1;
       read_req <= 1;
       byte_enable <= 4'b1111;
 
