@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 typedef enum {
     MEM_STATE_INIT = 1,
     MEM_STATE_READ_PENDING = 2,

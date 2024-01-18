@@ -15,27 +15,23 @@
 
 
 # Disable pylint's E1101, which breaks completely on migen
-#pylint:disable=E1101
-
-from migen import *
-
-from litex_boards.targets.digilent_arty import BaseSoC
-
-from litex.build.generic_platform import *
-from litex.build.sim.config import SimConfig
-
-from litex.soc.integration.common import get_mem_data
-from litex.soc.integration.builder import *
-from litex.soc.integration.soc_core import soc_core_args, soc_core_argdict
-from litex.soc.integration.soc import SoCRegion
-
-from litex.tools.litex_sim import SimSoC
-
-from patch_cpu_variant import patch_cpu_variant, copy_cpu_variant_if_needed
-from patch_cpu_variant import build_cpu_variant_if_needed
+# pylint:disable=E1101
 
 import argparse
 import os
+
+# from litex.tools.litex_sim import SimSoC
+from custom_boards.targets.litex_sim import SimSoC
+from litex.build.generic_platform import *
+from litex.build.sim.config import SimConfig
+from litex.soc.integration.builder import *
+from litex.soc.integration.common import get_mem_data
+from litex.soc.integration.soc import SoCRegion
+from litex.soc.integration.soc_core import soc_core_argdict, soc_core_args
+from litex_boards.targets.digilent_arty import BaseSoC
+from migen import *
+from patch_cpu_variant import (build_cpu_variant_if_needed,
+                               copy_cpu_variant_if_needed, patch_cpu_variant)
 
 
 def configure_sim_builder(builder: Builder, sim_rom_bin):
@@ -57,20 +53,44 @@ def main():
     parser = argparse.ArgumentParser(description="LiteX SoC on Arty A7")
     builder_args(parser)
     soc_core_args(parser)
-    parser.add_argument("--sim-trace",  action="store_true", help="Whether to enable tracing of simulation")
-    parser.add_argument("--sim-trace-start", default=0, help="Start tracing at this time in picoseconds")
-    parser.add_argument("--sim-trace-end", default=-1, help="Stop tracing at this time in picoseconds")
-    parser.add_argument("--run", action="store_true", help="Whether to run the simulation")
-    parser.add_argument("--separate-arena", action="store_true", help="Add arena mem region at 0x60000000")
-    parser.add_argument("--cfu-mport", action="store_true", help="Add ports between arena and CFU " \
-                        "(implies --separate-arena)")
-    parser.add_argument("--bin", help="RISCV binary to run. Required if --run is set.")
+    parser.add_argument(
+        "--sim-trace",
+        action="store_true",
+        help="Whether to enable tracing of simulation",
+    )
+    parser.add_argument(
+        "--sim-trace-start",
+        default=0,
+        help="Start tracing at this time in picoseconds",
+    )
+    parser.add_argument(
+        "--sim-trace-end",
+        default=-1,
+        help="Stop tracing at this time in picoseconds",
+    )
+    parser.add_argument(
+        "--run", action="store_true", help="Whether to run the simulation"
+    )
+    parser.add_argument(
+        "--separate-arena",
+        action="store_true",
+        help="Add arena mem region at 0x60000000",
+    )
+    parser.add_argument(
+        "--cfu-mport",
+        action="store_true",
+        help="Add ports between arena and CFU " "(implies --separate-arena)",
+    )
+    parser.add_argument(
+        "--bin", help="RISCV binary to run. Required if --run is set."
+    )
     parser.set_defaults(
-            csr_csv='csr.csv',
-            uart_name='serial',
-            uart_baudrate=921600,
-            cpu_variant='full+cfu+debug',
-            with_etherbone=False)
+        csr_csv="csr.csv",
+        uart_name="serial",
+        uart_baudrate=921600,
+        cpu_variant="full+cfu+debug",
+        with_etherbone=False,
+    )
     args = parser.parse_args()
     bin = None
     if args.run:
@@ -78,7 +98,7 @@ def main():
             bin = get_mem_data(args.bin, "little")
         else:
             print("must provide --bin if using --run")
-    
+
     # cfu_mport implies separate_arena
     if args.cfu_mport:
         args.separate_arena = True
@@ -89,22 +109,23 @@ def main():
     soc_kwargs["l2_size"] = 8 * 1024
     soc_kwargs["uart_name"] = "sim"
     soc = SimSoC(
-        integrated_main_ram_size = 32 * 1024 * 1024, 
-        integrated_main_ram_init=bin, 
-        sim_debug = True,
-        **soc_kwargs)
+        integrated_main_ram_size=32 * 1024 * 1024,
+        integrated_main_ram_init=bin,
+        sim_debug=True,
+        **soc_kwargs,
+    )
 
     if args.separate_arena:
-        soc.add_config('SOC_SEPARATE_ARENA')
-        soc.add_ram("arena",
-            origin = 0x60000000,
-            size   = 256 * 1024,
+        soc.add_config("SOC_SEPARATE_ARENA")
+        soc.add_ram(
+            "arena",
+            origin=0x60000000,
+            size=256 * 1024,
         )
     else:
         # size-zero .arena region (linker script needs it)
         region = SoCRegion(0x60000000, 0, cached=True, linker=True)
         soc.bus.add_region("arena", region)
-
 
     if args.cfu_mport:
         #
@@ -117,15 +138,15 @@ def main():
             soc.specials += newport[i]
 
             p_adr_from_cfu = Signal(14)
-            p_adr = Cat(Constant(i,2), p_adr_from_cfu)
+            p_adr = Cat(Constant(i, 2), p_adr_from_cfu)
             p_dat_r = Signal(32)
             soc.comb += [
                 p_dat_r.eq(newport[i].dat_r),
                 newport[i].adr.eq(p_adr),
             ]
 
-            soc.cpu.cfu_params.update(**{ f"o_port{i}_addr" : p_adr_from_cfu})
-            soc.cpu.cfu_params.update(**{ f"i_port{i}_din"  : p_dat_r})
+            soc.cpu.cfu_params.update(**{f"o_port{i}_addr": p_adr_from_cfu})
+            soc.cpu.cfu_params.update(**{f"i_port{i}_din": p_dat_r})
 
     sim_config = SimConfig()
     sim_config.add_clocker("sys_clk", freq_hz=soc.clk_freq)
@@ -143,7 +164,8 @@ def main():
         trace=args.sim_trace,
         trace_fst=True,
         trace_start=int(float(args.sim_trace_start)),
-        trace_end=int(float(args.sim_trace_end)))
+        trace_end=int(float(args.sim_trace_end)),
+    )
 
 
 if __name__ == "__main__":

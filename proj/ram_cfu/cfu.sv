@@ -46,8 +46,7 @@ module RAM_ctrl (
 
   logic has_err = cfu_ram_err;
 
-  // assign cfu_ram_cyc = ram_cyc;
-  assign cfu_ram_cyc = 1;
+  assign cfu_ram_cyc = ram_cyc;
   assign cfu_ram_stb = ram_stb;
   assign cfu_ram_we  = ram_we;
   assign cfu_ram_cti = ram_cti;
@@ -59,7 +58,7 @@ module RAM_ctrl (
   assign cfu_ram_dat_mosi = wdata;
   
   always_comb begin
-    next_state = MEM_STATE_INIT;
+    next_state = cur_state;
 
     case (cur_state)
       MEM_STATE_INIT: begin
@@ -68,23 +67,19 @@ module RAM_ctrl (
       end
 
       MEM_STATE_WRITE_PENDING: begin
-      next_state = (acknowledge | has_err) ? MEM_STATE_INIT :
-        MEM_STATE_WRITE_PENDING;
+          if (acknowledge | has_err) next_state = MEM_STATE_INIT;
       end
 
       MEM_STATE_READ_PENDING: begin
-      next_state = (acknowledge | has_err) ? MEM_STATE_INIT :
-        MEM_STATE_READ_PENDING;
+          if (acknowledge | has_err) next_state = MEM_STATE_INIT;
       end
 
       MEM_STATE_BURST_WRITE_PENDING: begin
-      next_state = (acknowledge | has_err) ? MEM_STATE_INIT :
-        MEM_STATE_BURST_WRITE_PENDING;
+          if (acknowledge | has_err) next_state = MEM_STATE_INIT;
       end
 
       MEM_STATE_BURST_READ_PENDING: begin
-      next_state = (acknowledge | has_err) ? MEM_STATE_INIT :
-        MEM_STATE_BURST_READ_PENDING;
+          if (acknowledge | has_err) next_state = MEM_STATE_INIT;
       end
     
       default: begin
@@ -93,7 +88,7 @@ module RAM_ctrl (
   end
 
   always_comb begin
-    // ram_cyc = 0;
+    ram_cyc = 0;
     ram_stb = 0;
     ram_we  = 0;
     ram_cti = 0;
@@ -102,13 +97,13 @@ module RAM_ctrl (
     case (cur_state)
       // TODO: Add burst mode handling
       MEM_STATE_WRITE_PENDING: begin
-        // ram_cyc = 1;
+        ram_cyc = 1;
         ram_stb = 1;
         ram_we  = 1;
       end
 
       MEM_STATE_READ_PENDING: begin
-        // ram_cyc = 1;
+        ram_cyc = 1;
         ram_stb = 1;
         ram_we  = 0;
       end

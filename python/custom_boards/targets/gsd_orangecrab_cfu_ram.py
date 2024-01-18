@@ -179,7 +179,6 @@ class BaseSoC(SoCCore):
         )
 
         # Hehe, that's a very bad hack, lol
-
         from vexriscv_cfu_ram.core import VexRiscvCFURAM
 
         cpu.CPUS.update({"vexriscv": VexRiscvCFURAM})
