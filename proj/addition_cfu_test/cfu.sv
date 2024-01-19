@@ -70,7 +70,7 @@ module Cfu (
   end
 
   // Only not ready for a command when we have a response.
-  assign cmd_ready = (cur_state == PIPELINE_STATE_INIT) & ~rsp_valid;
+  assign cmd_ready = cur_state == PIPELINE_STATE_INIT;
 
   always_ff @(negedge clk or posedge reset) begin
     cur_state <= next_state;
