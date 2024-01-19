@@ -17,6 +17,7 @@ limitations under the License.
 
 #include <algorithm>
 #include <cstdint>
+#include <stdio.h>
 
 #include "cfu.h"
 #include "perf.h"
@@ -104,19 +105,26 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                                 // acc = cfu_op0(/* funct7= */ 0,
                                 //               /* in0= */ input_val,
                                 //               /* in1= */ filter_val);
-                                uint32_t *input_adr =
-                                    (uint32_t *)input_data +
-                                    Offset(input_shape, batch, in_y, in_x,
-                                           in_channel);
+                                // uint32_t *input_adr =
+                                //     (uint32_t *)input_data +
+                                //     Offset(input_shape, batch, in_y, in_x,
+                                //            in_channel);
 
-                                uint32_t *filter_adr =
-                                    (uint32_t *)filter_data +
-                                    Offset(filter_shape, out_channel, filter_y,
-                                           filter_x, in_channel);
+                                // uint32_t *filter_adr =
+                                //     (uint32_t *)filter_data +
+                                //     Offset(filter_shape, out_channel,
+                                //     filter_y,
+                                //            filter_x, in_channel);
 
-                                acc = cfu_op0(/* funct7= */ 0,
-                                              /* in0= */ input_adr,
-                                              /* in1= */ filter_adr);
+                                acc = cfu_op0(
+                                    /* funct7= */ 0,
+                                    /* in0= */ filter_data +
+                                        Offset(filter_shape, out_channel,
+                                               filter_y, filter_x, in_channel),
+                                    /* in1= */ input_data +
+                                        Offset(input_shape, batch, in_y, in_x,
+                                               in_channel));
+                                printf("A\n");
                             }
                         }
                     }
