@@ -60,12 +60,14 @@ module Cfu (
   assign cfu_ram_we = 0;
 
   always_comb begin
+    next_state = cur_state;
+
     case (cur_state)
       PIPELINE_STATE_INIT: begin
-        if (cmd_valid) next_state = |cmd_payload_function_id[9:3] ?
-            PIPELINE_STATE_EXEC_0 :
-            PIPELINE_STATE_EXEC_1_FETCH_VAL;
-        else next_state = PIPELINE_STATE_INIT;
+          if (cmd_valid) begin
+            if (|cmd_payload_function_id[9:3]) next_state = PIPELINE_STATE_EXEC_0;
+            else next_state = PIPELINE_STATE_EXEC_1_FETCH_VAL;
+          end
       end
 
       PIPELINE_STATE_EXEC_0: begin
@@ -74,12 +76,12 @@ module Cfu (
 
       PIPELINE_STATE_EXEC_1_FETCH_VAL: begin
         if (cfu_ram_ack) next_state = PIPELINE_STATE_EXEC_1_FETCH_FILTER;
-        if (cfu_ram_err) next_state = PIPELINE_STATE_INIT;
+        if (cfu_ram_err) next_state = PIPELINE_STATE_EXEC_1_FETCH_VAL;
       end
 
       PIPELINE_STATE_EXEC_1_FETCH_FILTER: begin
-        if (cfu_ram_ack) next_state = PIPELINE_STATE_EXEC_1_FETCH_FILTER;
-        if (cfu_ram_err) next_state = PIPELINE_STATE_INIT;
+        if (cfu_ram_ack) next_state = PIPELINE_STATE_EXEC_1_ADD;
+        if (cfu_ram_err) next_state = PIPELINE_STATE_EXEC_1_FETCH_FILTER;
       end
 
       PIPELINE_STATE_EXEC_1_ADD: begin
@@ -93,22 +95,27 @@ module Cfu (
 
 
   // Only not ready for a command when we have a response.
+  // assign cmd_ready = (cur_state == PIPELINE_STATE_INIT) & ;
+  // logic ready;
   assign cmd_ready = cur_state == PIPELINE_STATE_INIT;
 
-  always_ff @(posedge clk or posedge reset) begin
+  always_ff @(negedge clk or posedge reset) begin
     cur_state <= next_state;
 
     if (reset) begin
       rsp_payload_outputs_0 <= 32'b0;
       rsp_valid <= 1'b0;
       cur_state <= PIPELINE_STATE_INIT;
+      // ready <= 1;
     end else if (rsp_valid) begin
       // Waiting to hand off response to CPU.
       rsp_valid <= ~rsp_ready;
+      // ready <= 1;
     end else if (cmd_valid) begin
+      // ready <= 0;
       rsp_valid <= (
-        cur_state == PIPELINE_STATE_EXEC_1_ADD |
-        cur_state == PIPELINE_STATE_EXEC_0
+        (cur_state == PIPELINE_STATE_EXEC_0) |
+        (cur_state == PIPELINE_STATE_EXEC_1_ADD)
       );
 
       case (cur_state)

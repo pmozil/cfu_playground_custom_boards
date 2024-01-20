@@ -28,32 +28,54 @@ void do_hello_world(void) { puts("Hello, World!!!\n"); }
 
 // Test template instruction
 void do_exercise_cfu_op0(void) {
-    puts("\r\nExercise CFU Op0 aka ADD\r\n");
+    puts("Running test on cfu\n");
+    int8_t vals[] = {-127, -127, -127, -127};
+    uint8_t filters[] = {2, 2, 2, 2};
 
-    unsigned int a = 0;
-    unsigned int b = 0;
-    unsigned int cfu = 0;
-    unsigned int count = 0;
-    unsigned int pass_count = 0;
-    unsigned int fail_count = 0;
+    puts("Zeroing stuff\n");
+    int32_t res = cfu_op0(1, 0, 0);
+    // puts("\r\nExercise CFU Op0 aka ADD\r\n");
+    int32_t software_res = 0;
+    int32_t fails = 0;
 
-    for (a = 50; a < 60; a += 1) {
-        for (b = 50; b < 60; b += 1) {
-            cfu = cfu_op0(0, &a, &b);
-            // cfu = cfu_op0(0, a, b);
-            printf("[%4d] a: %08x b:%08x a+b=%08x cfu=%08x\r\n", count, a, b,
-                   a + b, cfu);
-            if (cfu != a + b) {
-                fail_count++;
-            } else {
-                pass_count++;
+    for (int8_t i1 = -127; i1 <= -126; i1++) {
+        for (int8_t i2 = -127; i2 <= -126; i2++) {
+            for (int8_t i3 = -127; i3 <= -126; i3++) {
+                for (int8_t i4 = -127; i4 <= -126; i4++) {
+                    for (int8_t f1 = -127; f1 <= -126; f1++) {
+                        for (int8_t f2 = -127; f2 <= -126; f2++) {
+                            for (int8_t f3 = -127; f3 <= -126; f3++) {
+                                for (int8_t f4 = -127; f4 <= -126; f4++) {
+                                    vals[0] = i1;
+                                    vals[1] = i2;
+                                    vals[2] = i3;
+                                    vals[3] = i4;
+
+                                    filters[0] = f1;
+                                    filters[1] = f2;
+                                    filters[2] = f3;
+                                    filters[3] = f4;
+
+                                    res = cfu_op0(0, vals, filters);
+                                    software_res +=
+                                        (i1 + 128) * f1 + (i2 + 128) * f2 +
+                                        (i3 + 128) * f3 + (i4 + 128) * f4;
+                                    printf("Result after filter sum = %li\n",
+                                           res);
+                                    printf("Software result after filter sum = "
+                                           "%li\n",
+                                           software_res);
+                                    if (res != software_res)
+                                        fails++;
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            count++;
         }
     }
-
-    printf("\r\nPerformed %d comparisons, %d pass, %d fail\r\n", count,
-           pass_count, fail_count);
+    printf("Fails = %li\n", fails);
 }
 
 struct Menu MENU = {
