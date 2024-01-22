@@ -17,9 +17,7 @@ limitations under the License.
 
 #include <algorithm>
 #include <cstdint>
-#include <stdio.h>
 
-#include "cfu.h"
 #include "perf.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
@@ -72,8 +70,7 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                 const int in_x_origin = (out_x * stride_width) - pad_width;
                 for (int out_channel = 0; out_channel < output_depth;
                      ++out_channel) {
-                    int32_t acc = cfu_op0(/* funct7= */ 1, 0, 0); // resets acc
-                    // int32_t soft_acc = 0;
+                    int32_t acc = 0;
                     for (int filter_y = 0; filter_y < 1; ++filter_y) {
                         const int in_y = in_y_origin + filter_y;
                         for (int filter_x = 0; filter_x < 1; ++filter_x) {
@@ -91,61 +88,37 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
 
                             for (int in_channel = 0; in_channel < input_depth;
                                  in_channel += 4) {
-                                // int32_t input_val =
-                                //     input_data[Offset(input_shape, batch,
-                                //     in_y,
-                                //                       in_x, in_channel)];
-                                // int32_t filter_val = filter_data[Offset(
-                                //     filter_shape, out_channel, filter_y,
-                                //     filter_x, in_channel)];
-                                // soft_acc += filter_val * (input_val + 128);
+                                int32_t input_val =
+                                    input_data[Offset(input_shape, batch, in_y,
+                                                      in_x, in_channel)];
+                                int32_t filter_val = filter_data[Offset(
+                                    filter_shape, out_channel, filter_y,
+                                    filter_x, in_channel)];
+                                acc += filter_val * (input_val + 128);
 
-                                // input_val =
-                                //     input_data[Offset(input_shape, batch,
-                                //     in_y,
-                                //                       in_x, in_channel + 1)];
-                                // filter_val = filter_data[Offset(
-                                //     filter_shape, out_channel, filter_y,
-                                //     filter_x, in_channel + 1)];
-                                // soft_acc += filter_val * (input_val + 128);
+                                input_val =
+                                    input_data[Offset(input_shape, batch, in_y,
+                                                      in_x, in_channel + 1)];
+                                filter_val = filter_data[Offset(
+                                    filter_shape, out_channel, filter_y,
+                                    filter_x, in_channel + 1)];
+                                acc += filter_val * (input_val + 128);
 
-                                // input_val =
-                                //     input_data[Offset(input_shape, batch,
-                                //     in_y,
-                                //                       in_x, in_channel + 2)];
-                                // filter_val = filter_data[Offset(
-                                //     filter_shape, out_channel, filter_y,
-                                //     filter_x, in_channel + 2)];
-                                // soft_acc += filter_val * (input_val + 128);
+                                input_val =
+                                    input_data[Offset(input_shape, batch, in_y,
+                                                      in_x, in_channel + 2)];
+                                filter_val = filter_data[Offset(
+                                    filter_shape, out_channel, filter_y,
+                                    filter_x, in_channel + 2)];
+                                acc += filter_val * (input_val + 128);
 
-                                // input_val =
-                                //     input_data[Offset(input_shape, batch,
-                                //     in_y,
-                                //                       in_x, in_channel + 3)];
-                                // filter_val = filter_data[Offset(
-                                //     filter_shape, out_channel, filter_y,
-                                //     filter_x, in_channel + 3)];
-                                // soft_acc += filter_val * (input_val + 128);
-
-                                const void *in_adr =
-                                    input_data + Offset(input_shape, batch,
-                                                        in_y, in_x, in_channel);
-                                const void *filter_adr =
-                                    filter_data + Offset(filter_shape,
-                                                         out_channel, filter_y,
-                                                         filter_x, in_channel);
-
-                                acc = cfu_op0(
-                                    /* funct7= */ 0,
-                                    /* in0= */ in_adr,
-                                    /* in1= */ filter_adr);
-                                // if (acc != soft_acc) {
-                                //     printf("ERROR: in_adr = %p, filter_adr =
-                                //     "
-                                //            "%p soft_acc = %li, acc = %li\n",
-                                //            in_adr, filter_adr, soft_acc,
-                                //            acc);
-                                // }
+                                input_val =
+                                    input_data[Offset(input_shape, batch, in_y,
+                                                      in_x, in_channel + 3)];
+                                filter_val = filter_data[Offset(
+                                    filter_shape, out_channel, filter_y,
+                                    filter_x, in_channel + 3)];
+                                acc += filter_val * (input_val + 128);
                             }
                         }
                     }

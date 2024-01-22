@@ -1,3 +1,4 @@
+
 `timescale 1ns/1ps
 
 module Cfu (
@@ -23,25 +24,11 @@ module Cfu (
   input wire cfu_ram_ack,
   input wire cfu_ram_err
 );
-  localparam InputOffset = $signed(9'd128);
+  localparam FILTER_SIZE = 128;
 
-  // SIMD multiply step:
-  wire signed [15:0] prod_0, prod_1, prod_2, prod_3;
-
-  logic [31:0] matrix_vals = 0;
-  logic [31:0] filter_vals = 0;
-
-  assign prod_0 =  ($signed(matrix_vals[7 : 0]) + InputOffset)
-      * $signed(filter_vals[7 : 0]);
-  assign prod_1 =  ($signed(matrix_vals[15: 8]) + InputOffset)
-      * $signed(filter_vals[15: 8]);
-  assign prod_2 =  ($signed(matrix_vals[23:16]) + InputOffset)
-      * $signed(filter_vals[23:16]);
-  assign prod_3 =  ($signed(matrix_vals[31:24]) + InputOffset)
-      * $signed(filter_vals[31:24]);
-
-  wire signed [31:0] sum_prods;
-  assign sum_prods = prod_0 + prod_1 + prod_2 + prod_3;
+  // ------------------------------
+  // Finite automata states
+  // ------------------------------
 
   typedef enum {
     PIPELINE_STATE_INIT,
@@ -54,10 +41,38 @@ module Cfu (
   fetch_multiply_state cur_state = PIPELINE_STATE_INIT;
   fetch_multiply_state next_state;
 
+  // ------------------------------
+  // Wishbone RAM interface variables
+  // ------------------------------
+
   assign cfu_ram_sel = 4'b1111;
   assign cfu_ram_cti = 0;
   assign cfu_ram_bte = 0;
   assign cfu_ram_we = 0;
+
+  // ------------------------------
+  // Convolution setup
+  // ------------------------------
+  reg [8:0] InputOffset = $signed(9'd128);
+  reg [7:0] filter_matrix[FILTER_SIZE];
+
+  // SIMD multiply step:
+  wire signed [15:0] prod_0, prod_1, prod_2, prod_3;
+
+  logic [31:0] matrix_vals = 0;
+  logic [31:0] filter_vals = 0;
+
+  assign prod_0 =  ($signed(matrix_vals[7 : 0]) + $signed(InputOffset))
+      * $signed(filter_vals[7 : 0]);
+  assign prod_1 =  ($signed(matrix_vals[15: 8]) + $signed(InputOffset))
+      * $signed(filter_vals[15: 8]);
+  assign prod_2 =  ($signed(matrix_vals[23:16]) + $signed(InputOffset))
+      * $signed(filter_vals[23:16]);
+  assign prod_3 =  ($signed(matrix_vals[31:24]) + $signed(InputOffset))
+      * $signed(filter_vals[31:24]);
+
+  wire signed [31:0] sum_prods;
+  assign sum_prods = prod_0 + prod_1 + prod_2 + prod_3;
 
   always_comb begin
     next_state = cur_state;
