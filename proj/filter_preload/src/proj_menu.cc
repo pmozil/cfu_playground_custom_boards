@@ -39,10 +39,11 @@ void do_exercise_cfu_op0(void) {
 
     for (a = 50; a < 60; a += 1) {
         for (b = 50; b < 60; b += 1) {
+            cfu = cfu_op0(1, &a, &b);
             cfu = cfu_op0(0, &a, &b);
-            if (cfu != a + b) {
-                printf("[%4d] a: %08x b:%08x a+b=%08x cfu=%08x FAIL\r\n", count,
-                       a, b, a + b, cfu);
+            printf("[%4d] a: %08x b:%08x a+b=%08x cfu=%08x\r\n", count, a, b,
+                   (a + 128) * b, cfu);
+            if (cfu != (a + 128) * b) {
                 fail_count++;
             } else {
                 pass_count++;
