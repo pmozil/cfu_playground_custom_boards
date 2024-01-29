@@ -33,10 +33,12 @@ module Cfu (
     PIPELINE_STATE_EXEC_SET_ZEORES,
     PIPELINE_STATE_EXEC_SET_FILTER_DIMS,
     PIPELINE_STATE_EXEC_SET_IMAGE_DIMS,
+    PIPELINE_STATE_EXEC_SET_IMAGE_COORDS,
     PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR,
     PIPELINE_STATE_EXEC_CONV_FETCH_VAL,
     PIPELINE_STATE_EXEC_CONV_FETCH_FILTER,
-    PIPELINE_STATE_EXEC_CONV_ADD
+    PIPELINE_STATE_EXEC_CONV_ADD,
+    PIPELINE_STATE_EXEC_CONV_CALC_COORDS
   } fetch_multiply_state;
 
   fetch_multiply_state cur_state = PIPELINE_STATE_INIT;
@@ -56,12 +58,12 @@ module Cfu (
   // ------------------------------
   reg [8:0] InputOffset = $signed(9'd128);
 
-  reg [31:0] filter_width = '1;
-  reg [31:0] filter_height = '1;
+  reg [31:0] filter_width = 4;
+  reg [31:0] filter_height = 1;
   reg [31:0] filter_base = 0;
 
-  reg [31:0] image_width = '1;
-  reg [31:0] image_height = '1;
+  reg [31:0] image_width = 4;
+  reg [31:0] image_height = 1;
   reg [31:0] image_base = 0;
 
   reg [31:0] cur_filter_x = 0;
@@ -76,10 +78,10 @@ module Cfu (
   assign cur_image_adr = ((cur_filter_y + cur_image_y) * image_width) + cur_image_x + cur_filter_x;
 
   reg [3:0] add_select = '1;
-  assign add_select[0] = cur_filter_x < filter_width;
-  assign add_select[1] = cur_filter_x + 1 < filter_width;
-  assign add_select[2] = cur_filter_x + 2 < filter_width;
-  assign add_select[3] = cur_filter_x + 4 < filter_width;
+  assign add_select[0] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & cur_filter_x[1:0] == 0;
+  assign add_select[1] = (cur_image_x + cur_filter_x + 1 < image_width) & (cur_filter_x + 1 < filter_width) & cur_filter_x [1:0] <= 2'd1;
+  assign add_select[2] = (cur_image_x + cur_filter_x + 2 < image_width) & (cur_filter_x + 2 < filter_width) & cur_filter_x[1:0] <= 2'd2;
+  assign add_select[3] = (cur_image_x + cur_filter_x + 3 < image_width) & (cur_filter_x + 3 < filter_width);
 
 
   // SIMD multiply step:
@@ -145,7 +147,18 @@ module Cfu (
       end
 
       PIPELINE_STATE_EXEC_CONV_ADD: begin
-        next_state = PIPELINE_STATE_INIT;
+        next_state = PIPELINE_STATE_EXEC_CONV_CALC_COORDS;
+      end
+
+      PIPELINE_STATE_EXEC_CONV_CALC_COORDS: begin
+        if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
+            if (((cur_filter_y + 1 >= filter_height) | (cur_image_y + cur_filter_y + 1 >= image_height))) begin
+                next_state = PIPELINE_STATE_INIT;
+            end
+        end else begin
+            next_state = PIPELINE_STATE_EXEC_CONV_FETCH_VAL;
+        end
+
       end
        
       default: begin
@@ -179,7 +192,11 @@ module Cfu (
       );
 
       case (cur_state)
-      PIPELINE_STATE_EXEC_SET_ZEORES: rsp_payload_outputs_0 <= 32'b0;
+      PIPELINE_STATE_EXEC_SET_ZEORES: begin
+        rsp_payload_outputs_0 <= 32'b0;
+        cur_filter_x <= '0;
+        cur_filter_y <= '0;
+      end
 
       PIPELINE_STATE_EXEC_SET_FILTER_DIMS: begin
         filter_width <= cmd_payload_inputs_0;
@@ -223,6 +240,13 @@ module Cfu (
 
         cfu_ram_cyc <= 0;
         cfu_ram_stb <= 0;
+      end
+
+      PIPELINE_STATE_EXEC_CONV_CALC_COORDS: begin
+        if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
+            cur_filter_x <= 0;
+            cur_filter_y <= cur_filter_y + 1;
+        end else cur_filter_x <= cur_filter_x + 4;
       end
 
       default: begin
