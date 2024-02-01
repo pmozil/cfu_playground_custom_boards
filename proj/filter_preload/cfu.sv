@@ -1,4 +1,3 @@
-
 `timescale 1ns/1ps
 
 module Cfu (
@@ -30,15 +29,17 @@ module Cfu (
 
   typedef enum {
     PIPELINE_STATE_INIT,
-    PIPELINE_STATE_EXEC_SET_ZEORES,
-    PIPELINE_STATE_EXEC_SET_FILTER_DIMS,
-    PIPELINE_STATE_EXEC_SET_IMAGE_DIMS,
-    PIPELINE_STATE_EXEC_SET_IMAGE_COORDS,
-    PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR,
     PIPELINE_STATE_EXEC_CONV_FETCH_VAL,
     PIPELINE_STATE_EXEC_CONV_FETCH_FILTER,
     PIPELINE_STATE_EXEC_CONV_ADD,
-    PIPELINE_STATE_EXEC_CONV_CALC_COORDS
+    PIPELINE_STATE_EXEC_CONV_CALC_COORDS,
+    PIPELINE_STATE_EXEC_CONV_DONE = 'hFF,
+    PIPELINE_STATE_EXEC_SET_ZEORES,
+    PIPELINE_STATE_EXEC_SET_FILTER_DIMS,
+    PIPELINE_STATE_EXEC_SET_IMAGE_DIMS,
+    PIPELINE_STATE_EXEC_SET_INPUT_CHANNEL_SHAPE,
+    PIPELINE_STATE_EXEC_SET_IMAGE_COORDS,
+    PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR
   } fetch_multiply_state;
 
   fetch_multiply_state cur_state = PIPELINE_STATE_INIT;
@@ -58,11 +59,15 @@ module Cfu (
   // ------------------------------
   reg [8:0] InputOffset = $signed(9'd128);
 
-  reg [31:0] filter_width = 4;
+  reg [31:0] input_channel_stride = 1;
+  reg [31:0] input_channel_depth = 1;
+  reg [31:0] cur_input_depth = 0;
+
+  reg [31:0] filter_width = 1;
   reg [31:0] filter_height = 1;
   reg [31:0] filter_base = 0;
 
-  reg [31:0] image_width = 4;
+  reg [31:0] image_width = 1;
   reg [31:0] image_height = 1;
   reg [31:0] image_base = 0;
 
@@ -74,14 +79,15 @@ module Cfu (
   reg [31:0] cur_image_y = 0;
   reg [31:0] cur_image_adr = 0;
 
-  assign cur_filter_adr = (cur_filter_y * filter_width) + cur_filter_x;
-  assign cur_image_adr = ((cur_filter_y + cur_image_y) * image_width) + cur_image_x + cur_filter_x;
+  assign cur_filter_adr = (cur_filter_y * filter_width) + (cur_filter_x * input_channel_stride) + cur_input_depth + filter_base;
+  assign cur_image_adr = ((cur_filter_y + cur_image_y) * image_width) + ((cur_image_x + cur_filter_x) * input_channel_stride) + cur_input_depth + image_base;
 
   reg [3:0] add_select = '1;
-  assign add_select[0] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & cur_filter_x[1:0] == 0;
-  assign add_select[1] = (cur_image_x + cur_filter_x + 1 < image_width) & (cur_filter_x + 1 < filter_width) & cur_filter_x [1:0] <= 2'd1;
-  assign add_select[2] = (cur_image_x + cur_filter_x + 2 < image_width) & (cur_filter_x + 2 < filter_width) & cur_filter_x[1:0] <= 2'd2;
-  assign add_select[3] = (cur_image_x + cur_filter_x + 3 < image_width) & (cur_filter_x + 3 < filter_width);
+  // Better do generate for here (
+  assign add_select[0] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth     < input_channel_depth);
+  assign add_select[1] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth + 1 < input_channel_depth);
+  assign add_select[2] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth + 2 < input_channel_depth);
+  assign add_select[3] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth + 3 < input_channel_depth);
 
 
   // SIMD multiply step:
@@ -103,37 +109,22 @@ module Cfu (
   assign sum_prods = prod_0 + prod_1 + prod_2 + prod_3;
 
   always_comb begin
-    next_state = cur_state;
-
     case (cur_state)
+      default: next_state = PIPELINE_STATE_INIT;
+
       PIPELINE_STATE_INIT: begin
           if (cmd_valid) begin
               case (cmd_payload_function_id[9:3])
-                  0: next_state = PIPELINE_STATE_EXEC_CONV_FETCH_VAL;
-                  1: next_state = PIPELINE_STATE_EXEC_SET_ZEORES;
-                  2: next_state = PIPELINE_STATE_EXEC_SET_FILTER_DIMS;
-                  3: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_DIMS;
-                  4: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR;
-                  default: begin
-                  end
+                  7'd0: next_state = PIPELINE_STATE_EXEC_CONV_FETCH_VAL;
+                  7'd1: next_state = PIPELINE_STATE_EXEC_SET_ZEORES;
+                  7'd2: next_state = PIPELINE_STATE_EXEC_SET_FILTER_DIMS;
+                  7'd3: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_DIMS;
+                  7'd4: next_state = PIPELINE_STATE_EXEC_SET_INPUT_CHANNEL_SHAPE;
+                  7'd5: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_COORDS;
+                  7'd6: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR;
+                  default: next_state = PIPELINE_STATE_INIT;
               endcase
-          end
-      end
-
-      PIPELINE_STATE_EXEC_SET_ZEORES: begin
-        next_state = PIPELINE_STATE_INIT;
-      end
-
-      PIPELINE_STATE_EXEC_SET_IMAGE_DIMS: begin
-        next_state = PIPELINE_STATE_INIT;
-      end
-
-      PIPELINE_STATE_EXEC_SET_FILTER_DIMS: begin
-        next_state = PIPELINE_STATE_INIT;
-      end
-
-      PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR: begin
-        next_state = PIPELINE_STATE_INIT;
+          end else next_state = PIPELINE_STATE_INIT;
       end
 
       PIPELINE_STATE_EXEC_CONV_FETCH_VAL: begin
@@ -151,45 +142,40 @@ module Cfu (
       end
 
       PIPELINE_STATE_EXEC_CONV_CALC_COORDS: begin
-        if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
+        if (cur_input_depth + 4 >= input_channel_depth) begin
+          if (((cur_filter_x + 1 >= filter_width) | (cur_image_x + cur_filter_x + 1 >= image_width))) begin
             if (((cur_filter_y + 1 >= filter_height) | (cur_image_y + cur_filter_y + 1 >= image_height))) begin
-                next_state = PIPELINE_STATE_INIT;
+                next_state = PIPELINE_STATE_EXEC_CONV_DONE;
             end
+          end
         end else begin
             next_state = PIPELINE_STATE_EXEC_CONV_FETCH_VAL;
         end
 
-      end
-       
-      default: begin
       end
     endcase
   end
 
 
   // Only not ready for a command when we have a response.
-  // assign cmd_ready = (cur_state == PIPELINE_STATE_INIT) & ;
-  // logic ready;
   assign cmd_ready = cur_state == PIPELINE_STATE_INIT;
 
   always_ff @(negedge clk or posedge reset) begin
     cur_state <= next_state;
 
     if (reset) begin
+      cur_filter_x <= 0;
+      cur_filter_y <= 0;
+      cur_input_depth <= 0;
+
       rsp_payload_outputs_0 <= 32'b0;
       rsp_valid <= 1'b0;
       cur_state <= PIPELINE_STATE_INIT;
-      // ready <= 1;
     end else if (rsp_valid) begin
       // Waiting to hand off response to CPU.
       rsp_valid <= ~rsp_ready;
-      // ready <= 1;
     end else if (cmd_valid) begin
-      // ready <= 0;
-      rsp_valid <= (
-        (cur_state == PIPELINE_STATE_EXEC_SET_ZEORES) |
-        (cur_state == PIPELINE_STATE_EXEC_CONV_ADD)
-      );
+      rsp_valid <= cur_state >= PIPELINE_STATE_EXEC_CONV_DONE;
 
       case (cur_state)
       PIPELINE_STATE_EXEC_SET_ZEORES: begin
@@ -198,9 +184,20 @@ module Cfu (
         cur_filter_y <= '0;
       end
 
+      PIPELINE_STATE_EXEC_SET_INPUT_CHANNEL_SHAPE: begin
+        input_channel_depth <= cmd_payload_inputs_0;
+        input_channel_stride <= cmd_payload_inputs_0;
+        InputOffset <= cmd_payload_inputs_1;
+      end
+
       PIPELINE_STATE_EXEC_SET_FILTER_DIMS: begin
         filter_width <= cmd_payload_inputs_0;
         filter_height <= cmd_payload_inputs_1;
+      end
+
+      PIPELINE_STATE_EXEC_SET_IMAGE_COORDS: begin
+        cur_image_x <= cmd_payload_inputs_0;
+        cur_image_y <= cmd_payload_inputs_1;
       end
 
       PIPELINE_STATE_EXEC_SET_IMAGE_DIMS: begin
@@ -214,7 +211,8 @@ module Cfu (
       end
 
       PIPELINE_STATE_EXEC_CONV_FETCH_VAL: begin
-          cfu_ram_adr <= cmd_payload_inputs_0[31:2];
+          // cfu_ram_adr <= cmd_payload_inputs_0[31:2];
+          cfu_ram_adr <= cur_image_adr[31:2];
 
           cfu_ram_cyc <= 1;
           cfu_ram_stb <= 1;
@@ -225,7 +223,8 @@ module Cfu (
       end
 
       PIPELINE_STATE_EXEC_CONV_FETCH_FILTER: begin
-          cfu_ram_adr <= cmd_payload_inputs_1[31:2];
+          // cfu_ram_adr <= cmd_payload_inputs_1[31:2];
+          cfu_ram_adr <= cur_filter_adr[31:2];
 
           cfu_ram_cyc <= 1;
           cfu_ram_stb <= 1;
@@ -240,13 +239,23 @@ module Cfu (
 
         cfu_ram_cyc <= 0;
         cfu_ram_stb <= 0;
-      end
 
-      PIPELINE_STATE_EXEC_CONV_CALC_COORDS: begin
-        if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
-            cur_filter_x <= 0;
-            cur_filter_y <= cur_filter_y + 1;
-        end else cur_filter_x <= cur_filter_x + 4;
+        if (cur_input_depth + 4 >= input_channel_depth) begin
+            if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
+                if (((cur_filter_y + 1 >= filter_height) | (cur_image_y + cur_filter_y + 1 >= image_height))) begin
+                    cur_input_depth <= 0;
+                    cur_filter_x <= 0;
+                    cur_filter_y <= 0;
+                end else begin
+                    cur_input_depth <= 0;
+                    cur_filter_x <= 0;
+                    cur_filter_y <= cur_filter_y + 1;
+                end
+            end else begin
+                cur_input_depth <= 0;
+                cur_filter_x <= cur_filter_x + 1;
+            end
+        end else cur_input_depth <= cur_input_depth + 4;
       end
 
       default: begin

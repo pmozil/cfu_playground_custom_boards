@@ -30,30 +30,28 @@ void do_hello_world(void) { puts("Hello, World!!!\n"); }
 void do_exercise_cfu_op0(void) {
     puts("\r\nExercise CFU Op0 aka ADD\r\n");
 
-    unsigned int a = 0;
-    unsigned int b = 0;
-    unsigned int cfu = 0;
-    unsigned int count = 0;
-    unsigned int pass_count = 0;
-    unsigned int fail_count = 0;
+    int8_t img_vals[] = {-128, -128, -128, -127};
+    int8_t filter_vals[] = {1, 1, 1, 1};
+    int32_t acc = 0;
 
-    for (a = 50; a < 60; a += 1) {
-        for (b = 50; b < 60; b += 1) {
-            cfu = cfu_op0(1, &a, &b);
-            cfu = cfu_op0(0, &a, &b);
-            printf("[%4d] a: %08x b:%08x a+b=%08x cfu=%08x\r\n", count, a, b,
-                   (a + 128) * b, cfu);
-            if (cfu != (a + 128) * b) {
-                fail_count++;
-            } else {
-                pass_count++;
-            }
-            count++;
-        }
-    }
+    puts("Zero out\r\n");
+    acc = cfu_op0(1, 0, 0);
+    puts("Set filter dims\r\n");
+    acc = cfu_op0(2, 0xabcd, 0xabcd);
+    puts("Set image dims\r\n");
+    acc = cfu_op0(3, 1, 1);
+    puts("Set image depth\r\n");
+    acc = cfu_op0(4, 4, 128);
+    puts("Set img coords\r\n");
+    acc = cfu_op0(5, 0, 0);
+    puts("Set addresses\r\n");
+    acc = cfu_op0(6, img_vals, filter_vals);
+    puts("Zero out\r\n");
+    acc = cfu_op0(1, 0, 0);
 
-    printf("\r\nPerformed %d comparisons, %d pass, %d fail\r\n", count,
-           pass_count, fail_count);
+    puts("Perform convolution\r\n");
+    acc = cfu_op0(0, 0, 0);
+    printf("result = %li\r\n", acc);
 }
 
 struct Menu MENU = {
