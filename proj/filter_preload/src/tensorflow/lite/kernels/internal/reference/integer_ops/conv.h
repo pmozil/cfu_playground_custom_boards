@@ -89,6 +89,7 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                         Offset(filter_shape, out_channel, 0, 0, 0);
                     cfu_op0(6, img_adr, filter_adr);
                     acc = cfu_op0(0, 0, 0);
+                    puts("A\r\n");
 
                     // for (int filter_y = 0; filter_y < 1; ++filter_y) {
                     //     for (int filter_x = 0; filter_x < 1; ++filter_x) {

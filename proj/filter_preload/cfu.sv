@@ -33,6 +33,9 @@ module Cfu (
     PIPELINE_STATE_EXEC_CONV_FETCH_FILTER,
     PIPELINE_STATE_EXEC_CONV_ADD,
     PIPELINE_STATE_EXEC_CONV_CALC_COORDS,
+    // This is here because every state after this one is the final one for
+    // the CFU. This means that after this, the cfu should go bach to
+    // PIPELINE_STATE_INIT, thus should be ready for the next command
     PIPELINE_STATE_EXEC_CONV_DONE = 'hFF,
     PIPELINE_STATE_EXEC_SET_ZEORES,
     PIPELINE_STATE_EXEC_SET_FILTER_DIMS,
@@ -83,7 +86,7 @@ module Cfu (
   assign cur_image_adr = ((cur_filter_y + cur_image_y) * image_width) + ((cur_image_x + cur_filter_x) * input_channel_stride) + cur_input_depth + image_base;
 
   reg [3:0] add_select = '1;
-  // Better do generate for here (
+  // I should do generate for here, but i'm too lazy to google the syntax, hehe
   assign add_select[0] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth     < input_channel_depth);
   assign add_select[1] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth + 1 < input_channel_depth);
   assign add_select[2] = (cur_image_x + cur_filter_x < image_width) & (cur_filter_x < filter_width) & (cur_input_depth + 2 < input_channel_depth);
@@ -109,6 +112,8 @@ module Cfu (
   assign sum_prods = prod_0 + prod_1 + prod_2 + prod_3;
 
   always_comb begin
+    next_state = cur_state;
+
     case (cur_state)
       default: next_state = PIPELINE_STATE_INIT;
 
@@ -241,7 +246,7 @@ module Cfu (
         cfu_ram_stb <= 0;
 
         if (cur_input_depth + 4 >= input_channel_depth) begin
-            if (((cur_filter_x + 4 >= filter_width) | (cur_image_x + cur_filter_x + 4 >= image_width))) begin
+            if (((cur_filter_x + 1 >= filter_width) | (cur_image_x + cur_filter_x + 1 >= image_width))) begin
                 if (((cur_filter_y + 1 >= filter_height) | (cur_image_y + cur_filter_y + 1 >= image_height))) begin
                     cur_input_depth <= 0;
                     cur_filter_x <= 0;
