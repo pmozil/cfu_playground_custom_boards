@@ -78,6 +78,8 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
     acc = cfu_op0(4, input_depth, input_offset);
     // Set filter input depth
     acc = cfu_op0(7, filter_input_depth, 0);
+    // Set filter and image addresses
+    acc = cfu_op0(6, input_data, filter_data);
 
     for (int batch = 0; batch < batches; ++batch) {
         for (int out_y = 0; out_y < output_height; ++out_y) {
@@ -85,11 +87,10 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
             for (int out_x = 0; out_x < output_width; ++out_x) {
                 const int in_x_origin = (out_x * stride_width) - pad_width;
                 acc = cfu_op0(5, in_x_origin, in_y_origin);
-                acc = cfu_op0(1, 0, 0); // resets acc
-                printf(".");
+                printf("A");
+                acc = cfu_op0(1, 0, 0);
                 for (int out_channel = 0; out_channel < output_depth;
                      ++out_channel) {
-                    acc = cfu_op0(8, batch, out_channel);
                     // inline int Offset(const RuntimeShape& shape, int i0, int
                     // i1, int i2, int i3) {
                     //   TFLITE_DCHECK_EQ(shape.DimensionsCount(), 4);
@@ -114,8 +115,12 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                     //                          out_channel, filter_y,
                     //                          filter_x, in_channel);
 
-                    printf("O");
-                    acc = cfu_op0(6, input_data, filter_data);
+                    acc = cfu_op0(8, batch, out_channel);
+                    long int in_adr =
+                        (int32_t)(input_data) +
+                        Offset(input_shape, batch, in_y_origin, in_x_origin, 0);
+                    acc = cfu_op0(9, 0, 0);
+                    printf("Calculated = %li, fpga = %li\r\n", in_adr, acc);
                     acc = cfu_op0(0, 0, 0);
 
                     if (bias_data) {

@@ -37,7 +37,7 @@ void do_exercise_cfu_op0(void) {
     puts("Zero out\r\n");
     acc = cfu_op0(1, 0, 0);
     puts("Set filter dims\r\n");
-    acc = cfu_op0(2, 0xabcd, 0xabcd);
+    acc = cfu_op0(2, 1, 1);
     puts("Set image dims\r\n");
     acc = cfu_op0(3, 1, 1);
     puts("Set image depth\r\n");
@@ -46,6 +46,10 @@ void do_exercise_cfu_op0(void) {
     acc = cfu_op0(5, 0, 0);
     puts("Set addresses\r\n");
     acc = cfu_op0(6, img_vals, filter_vals);
+    puts("Set batch and offset\r\n");
+    acc = cfu_op0(8, 0, 0);
+    puts("Set filter depth\r\n");
+    acc = cfu_op0(7, 1, 0);
     puts("Zero out\r\n");
     acc = cfu_op0(1, 0, 0);
 
