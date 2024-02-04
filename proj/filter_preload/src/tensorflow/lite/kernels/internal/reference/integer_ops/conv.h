@@ -85,10 +85,9 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
         for (int out_y = 0; out_y < output_height; ++out_y) {
             const int in_y_origin = (out_y * stride_height) - pad_height;
             for (int out_x = 0; out_x < output_width; ++out_x) {
+                acc = cfu_op0(1, 0, 0);
                 const int in_x_origin = (out_x * stride_width) - pad_width;
                 acc = cfu_op0(5, in_x_origin, in_y_origin);
-                printf("A");
-                acc = cfu_op0(1, 0, 0);
                 for (int out_channel = 0; out_channel < output_depth;
                      ++out_channel) {
                     // inline int Offset(const RuntimeShape& shape, int i0, int
@@ -108,6 +107,9 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                     //   dims_data[3] + i3;
                     // }
                     // }
+                    // const int input_height = input_shape.Dims(1);
+                    // const int input_width = input_shape.Dims(2);
+                    // const int filter_input_depth = filter_shape.Dims(3);
                     //     input_data + Offset(input_shape, batch,
                     //                         in_y, in_x, in_channel);
                     // const void *filter_adr =
@@ -116,11 +118,7 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                     //                          filter_x, in_channel);
 
                     acc = cfu_op0(8, batch, out_channel);
-                    long int in_adr =
-                        (int32_t)(input_data) +
-                        Offset(input_shape, batch, in_y_origin, in_x_origin, 0);
-                    acc = cfu_op0(9, 0, 0);
-                    printf("Calculated = %li, fpga = %li\r\n", in_adr, acc);
+                    printf("O");
                     acc = cfu_op0(0, 0, 0);
 
                     if (bias_data) {

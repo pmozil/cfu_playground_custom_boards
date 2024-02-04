@@ -34,27 +34,18 @@ void do_exercise_cfu_op0(void) {
     int8_t filter_vals[] = {1, 1, 1, 1};
     int32_t acc = 0;
 
-    puts("Zero out\r\n");
-    acc = cfu_op0(1, 0, 0);
-    puts("Set filter dims\r\n");
-    acc = cfu_op0(2, 1, 1);
-    puts("Set image dims\r\n");
-    acc = cfu_op0(3, 1, 1);
-    puts("Set image depth\r\n");
-    acc = cfu_op0(4, 4, 128);
-    puts("Set img coords\r\n");
-    acc = cfu_op0(5, 0, 0);
-    puts("Set addresses\r\n");
-    acc = cfu_op0(6, img_vals, filter_vals);
-    puts("Set batch and offset\r\n");
-    acc = cfu_op0(8, 0, 0);
-    puts("Set filter depth\r\n");
-    acc = cfu_op0(7, 1, 0);
-    puts("Zero out\r\n");
-    acc = cfu_op0(1, 0, 0);
+    cfu_op0(1, 0, 0);
+    cfu_op1(2, 1, 1);
+    cfu_op2(3, 1, 1);
+    cfu_op3(4, 4, 128);
+    cfu_op4(5, 0, 0);
+    cfu_op5(6, img_vals, filter_vals);
+    cfu_op6(8, 0, 0);
+    cfu_op7(7, 1, 0);
+    cfu_op0(1, 0, 0);
 
     puts("Perform convolution\r\n");
-    acc = cfu_op0(0, 0, 0);
+    acc = cfu_op1(0, 0, 0);
     printf("result = %li\r\n", acc);
 }
 
