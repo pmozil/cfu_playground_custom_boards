@@ -17,10 +17,9 @@ limitations under the License.
 
 #include <algorithm>
 #include <cstdint>
-#include <stdio.h>
+#include <cstdio>
 
 #include "cfu.h"
-#include "perf.h"
 #include "tensorflow/lite/kernels/internal/common.h"
 #include "tensorflow/lite/kernels/internal/portable_tensor_utils.h"
 
@@ -61,7 +60,6 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
     // Check dimensions of the tensors.
     const int input_height = input_shape.Dims(1);
     const int input_width = input_shape.Dims(2);
-    cfu_op0(3, input_width, input_height);
     const int filter_input_depth = filter_shape.Dims(3);
     TFLITE_DCHECK_EQ(input_depth % filter_input_depth, 0);
     const int output_height = output_shape.Dims(1);
@@ -70,51 +68,55 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
     const int filter_height = filter_shape.Dims(1);
     const int filter_width = filter_shape.Dims(2);
     const int32_t input_offset = params.input_offset;
-    cfu_op0(2, filter_width, filter_height);
-    cfu_op0(4, filter_input_depth, input_offset);
+
+    int32_t acc = 0;
+    // Set filter width and height
+    acc = cfu_op0(2, filter_width, filter_height);
+    // Set image width and height
+    acc = cfu_op0(3, input_width, input_height);
+    // Set image depth and input offset
+    acc = cfu_op0(4, input_depth, input_offset);
+    // Set filter input depth
+    acc = cfu_op0(7, filter_input_depth, 0);
 
     for (int batch = 0; batch < batches; ++batch) {
         for (int out_y = 0; out_y < output_height; ++out_y) {
             const int in_y_origin = (out_y * stride_height) - pad_height;
             for (int out_x = 0; out_x < output_width; ++out_x) {
                 const int in_x_origin = (out_x * stride_width) - pad_width;
-                cfu_op0(5, in_x_origin, in_y_origin);
-                int32_t acc = cfu_op0(/* funct7= */ 1, 0, 0); // resets acc
+                acc = cfu_op0(5, in_x_origin, in_y_origin);
+                acc = cfu_op0(1, 0, 0); // resets acc
+                printf(".");
                 for (int out_channel = 0; out_channel < output_depth;
                      ++out_channel) {
-                    const void *img_adr =
-                        input_data + Offset(input_shape, batch, 0, 0, 0);
-                    const void *filter_adr =
-                        filter_data +
-                        Offset(filter_shape, out_channel, 0, 0, 0);
-                    cfu_op0(6, img_adr, filter_adr);
-                    acc = cfu_op0(0, 0, 0);
-                    puts("A\r\n");
-
-                    // for (int filter_y = 0; filter_y < 1; ++filter_y) {
-                    //     for (int filter_x = 0; filter_x < 1; ++filter_x) {
-                    //         const int in_x = in_x_origin + filter_x;
-
-                    //         for (int in_channel = 0; in_channel <
-                    //         input_depth;
-                    //              in_channel += 4) {
-                    //             const void *in_adr =
-                    //                 input_data + Offset(input_shape, batch,
-                    //                                     in_y, in_x,
-                    //                                     in_channel);
-                    //             const void *filter_adr =
-                    //                 filter_data + Offset(filter_shape,
-                    //                                      out_channel,
-                    //                                      filter_y, filter_x,
-                    //                                      in_channel);
-
-                    //             acc = cfu_op0(
-                    //                 /* funct7= */ 0,
-                    //                 /* in0= */ in_adr,
-                    //                 /* in1= */ filter_adr);
-                    //         }
-                    //     }
+                    acc = cfu_op0(8, batch, out_channel);
+                    // inline int Offset(const RuntimeShape& shape, int i0, int
+                    // i1, int i2, int i3) {
+                    //   TFLITE_DCHECK_EQ(shape.DimensionsCount(), 4);
+                    //   const int* dims_data = reinterpret_cast<const
+                    //   int*>(shape.DimsData()); TFLITE_DCHECK((dims_data[0] ==
+                    //   0 && i0 == 0) ||
+                    //                 (i0 >= 0 && i0 < dims_data[0]));
+                    //   TFLITE_DCHECK((dims_data[1] == 0 && i1 == 0) ||
+                    //                 (i1 >= 0 && i1 < dims_data[1]));
+                    //   TFLITE_DCHECK((dims_data[2] == 0 && i2 == 0) ||
+                    //                 (i2 >= 0 && i2 < dims_data[2]));
+                    //   TFLITE_DCHECK((dims_data[3] == 0 && i3 == 0) ||
+                    //                 (i3 >= 0 && i3 < dims_data[3]));
+                    //   return ((i0 * dims_data[1] + i1) * dims_data[2] + i2) *
+                    //   dims_data[3] + i3;
                     // }
+                    // }
+                    //     input_data + Offset(input_shape, batch,
+                    //                         in_y, in_x, in_channel);
+                    // const void *filter_adr =
+                    //     filter_data + Offset(filter_shape,
+                    //                          out_channel, filter_y,
+                    //                          filter_x, in_channel);
+
+                    printf("O");
+                    acc = cfu_op0(6, input_data, filter_data);
+                    acc = cfu_op0(0, 0, 0);
 
                     if (bias_data) {
                         acc += bias_data[out_channel];
