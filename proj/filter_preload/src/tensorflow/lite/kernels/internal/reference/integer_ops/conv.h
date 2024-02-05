@@ -82,6 +82,7 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
     acc = cfu_op0(7, filter_input_depth, input_offset);
 
     for (int batch = 0; batch < batches; ++batch) {
+        const int batch_offset = batch * input_shape.Dims(1);
         for (int out_y = 0; out_y < output_height; ++out_y) {
             const int in_y_origin = (out_y * stride_height) - pad_height;
             for (int out_x = 0; out_x < output_width; ++out_x) {
@@ -115,10 +116,10 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                     //     filter_data + Offset(filter_shape,
                     //                          out_channel, filter_y,
                     //                          filter_x, in_channel);
+                    const int out_offset = out_channel * filter_shape.Dims(1);
 
-                    acc = cfu_op0(8, batch * input_shape.Dims(1),
-                                  out_channel * filter_shape.Dims(1));
-                    acc = cfu_op0(1, 0, 0);
+                    acc = cfu_op0(8, batch_offset, out_offset);
+                    // acc = cfu_op0(1, 0, 0);
                     acc = cfu_op0(0, 0, 0);
 
                     if (bias_data) {

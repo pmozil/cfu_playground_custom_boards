@@ -37,7 +37,7 @@ module Cfu (
     // the CFU. This means that after this, the cfu should go bach to
     // PIPELINE_STATE_INIT, thus should be ready for the next command
     PIPELINE_STATE_EXEC_CONV_DONE = 100,
-    PIPELINE_STATE_EXEC_SET_ZEORES,
+    PIPELINE_STATE_EXEC_SET_ZEROES,
     PIPELINE_STATE_EXEC_SET_FILTER_INPUT_DEPTH,
     PIPELINE_STATE_EXEC_SET_BASE_OFFSETS,
     PIPELINE_STATE_EXEC_SET_FILTER_DIMS,
@@ -131,7 +131,7 @@ module Cfu (
           if (cmd_valid) begin
               case (cmd_payload_function_id[9:3])
                   7'd0: next_state = PIPELINE_STATE_EXEC_CONV_FETCH_VAL;
-                  7'd1: next_state = PIPELINE_STATE_EXEC_SET_ZEORES;
+                  7'd1: next_state = PIPELINE_STATE_EXEC_SET_ZEROES;
                   7'd2: next_state = PIPELINE_STATE_EXEC_SET_FILTER_DIMS;
                   7'd3: next_state = PIPELINE_STATE_EXEC_SET_IMAGE_DIMS;
                   7'd4: next_state = PIPELINE_STATE_EXEC_SET_INPUT_CHANNEL_SHAPE;
@@ -195,7 +195,7 @@ module Cfu (
       cur_state <= PIPELINE_STATE_INIT;
     end else begin
       case (cur_state)
-      PIPELINE_STATE_EXEC_SET_ZEORES: begin
+      PIPELINE_STATE_EXEC_SET_ZEROES: begin
         rsp_payload_outputs_0 <= 32'b0;
         cur_filter_x <= '0;
         cur_filter_y <= '0;
@@ -229,6 +229,9 @@ module Cfu (
       PIPELINE_STATE_EXEC_SET_BASE_OFFSETS: begin
           image_base_offset <= cmd_payload_inputs_0;
           filter_base_offset <= cmd_payload_inputs_1;
+          rsp_payload_outputs_0 <= 32'b0;
+          cur_filter_x <= '0;
+          cur_filter_y <= '0;
       end
 
       PIPELINE_STATE_EXEC_SET_IMAGE_FILTER_ADR: begin
