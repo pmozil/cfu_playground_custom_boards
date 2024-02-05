@@ -99,25 +99,23 @@ module Cfu (
   // logic ready;
   assign cmd_ready = cur_state == PIPELINE_STATE_INIT;
 
+  always_ff @(posedge clk or posedge reset) begin
+    if (reset) rsp_valid <= 0;
+    else if (rsp_valid) rsp_valid <= ~rsp_ready;
+    else rsp_valid <= (
+        (cur_state == PIPELINE_STATE_EXEC_0) |
+        (cur_state == PIPELINE_STATE_EXEC_1_ADD)
+      );
+  end
+
   always_ff @(negedge clk or posedge reset) begin
     cur_state <= next_state;
 
     if (reset) begin
       rsp_payload_outputs_0 <= 32'b0;
-      rsp_valid <= 1'b0;
       cur_state <= PIPELINE_STATE_INIT;
       // ready <= 1;
-    end else if (rsp_valid) begin
-      // Waiting to hand off response to CPU.
-      rsp_valid <= ~rsp_ready;
-      // ready <= 1;
     end else if (cmd_valid) begin
-      // ready <= 0;
-      rsp_valid <= (
-        (cur_state == PIPELINE_STATE_EXEC_0) |
-        (cur_state == PIPELINE_STATE_EXEC_1_ADD)
-      );
-
       case (cur_state)
       PIPELINE_STATE_EXEC_0: rsp_payload_outputs_0 <= 32'b0;
 

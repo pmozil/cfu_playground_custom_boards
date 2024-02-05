@@ -41,7 +41,7 @@ void do_exercise_cfu_op0(void) {
     cfu_op4(5, 0, 0);
     cfu_op5(6, img_vals, filter_vals);
     cfu_op6(8, 0, 0);
-    cfu_op7(7, 1, 0);
+    cfu_op7(7, 1, 128);
     cfu_op0(1, 0, 0);
 
     puts("Perform convolution\r\n");

@@ -76,16 +76,15 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
     acc = cfu_op0(3, input_width, input_height);
     // Set image depth and input offset
     acc = cfu_op0(4, input_depth, input_offset);
-    // Set filter input depth
-    acc = cfu_op0(7, filter_input_depth, 0);
     // Set filter and image addresses
     acc = cfu_op0(6, input_data, filter_data);
+    // Set filter input depth
+    acc = cfu_op0(7, filter_input_depth, input_offset);
 
     for (int batch = 0; batch < batches; ++batch) {
         for (int out_y = 0; out_y < output_height; ++out_y) {
             const int in_y_origin = (out_y * stride_height) - pad_height;
             for (int out_x = 0; out_x < output_width; ++out_x) {
-                acc = cfu_op0(1, 0, 0);
                 const int in_x_origin = (out_x * stride_width) - pad_width;
                 acc = cfu_op0(5, in_x_origin, in_y_origin);
                 for (int out_channel = 0; out_channel < output_depth;
@@ -117,8 +116,9 @@ ConvPerChannel(const ConvParams &params, const int32_t *output_multiplier,
                     //                          out_channel, filter_y,
                     //                          filter_x, in_channel);
 
-                    acc = cfu_op0(8, batch, out_channel);
-                    printf("O");
+                    acc = cfu_op0(8, batch * input_shape.Dims(1),
+                                  out_channel * filter_shape.Dims(1));
+                    acc = cfu_op0(1, 0, 0);
                     acc = cfu_op0(0, 0, 0);
 
                     if (bias_data) {
